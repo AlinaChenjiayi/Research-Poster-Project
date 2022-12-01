@@ -1,0 +1,300 @@
+---
+title: "QTM 302W Instacart Poster Projet"
+author: "Alina Chen, Christina Ding"
+date: "11/30/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE,warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(stringr)
+library(treemap)
+library(scales)
+
+orders <- read.csv("orders.csv")
+products <- read.csv("products.csv")
+order_products_prior <- read.csv("order_products__prior.csv")
+aisles <- read.csv("aisles.csv")
+departments <- read.csv("departments.csv")
+```
+
+
+
+```{r}
+#convert names to factor, and order_hour_of_day to numeric 
+orders <- orders %>% 
+  mutate(order_time = as.numeric(order_hour_of_day))
+products <- products %>% 
+  mutate(product_name = as.factor(product_name))
+aisles <- aisles %>% 
+  mutate(aisle = as.factor(aisle))
+departments <- departments %>% 
+  mutate(department = as.factor(department))
+```
+
+
+#### Order Volume By the Hour of A Day
+
+
+```{r}
+orders %>% 
+  ggplot(aes(x=order_time)) + 
+  geom_histogram(stat="count",fill="darkcyan")+scale_y_continuous(labels = label_number(scale=1e-3))+labs(x="Order Time (Hour of a Day)",y="Number of Orders (in Thousand)",title="Figure 1: Order Volume by the Hour of a Day")
+```
+
+#### Order Volume By the Day of a Week.
+
+
+```{r}
+orders %>% 
+  ggplot(aes(as.factor(x=order_dow))) + 
+  geom_histogram(stat="count",fill="darkcyan")+scale_y_continuous(labels = label_number(scale=1e-3))+labs(x="Order Time (Day of a Week)",y="Number of Orders (in Thousand)",title="Figure 2: Order Volume by the Day of a Week")
+```
+
+#### When Do People Usually Reorder?
+
+
+```{r}
+orders %>% 
+  ggplot(aes(as.factor(x=days_since_prior_order)))+
+  geom_histogram(stat="count",fill="darkcyan")+scale_y_continuous(labels = label_number(scale=1e-3))+labs(x="Days Since Prior Order",y="Number of People (in Thousand)",title="Figure 3: Summary of When Customers Reorder Since Previous Order")
+```
+
+### Products Portfolio
+
+#### The Overall Inventories of Products in Departments and Aisles
+
+
+```{r}
+tmp <- products %>% 
+  group_by(department_id, aisle_id) %>% 
+  summarize(n=n())
+tmp <- tmp %>% 
+  left_join(departments,by="department_id")
+tmp <- tmp %>% 
+  left_join(aisles,by="aisle_id")
+#title can't be add in treemap
+treemap(tmp,index=c("department","aisle"),vSize="n",title="",palette="Set3",border.col="#FFFFFF")
+```
+
+#### Frequency of Products Sold in Departments and Aisles
+
+```{r}
+tmp2<-order_products_prior %>% 
+  group_by(product_id) %>% 
+  summarize(count=n()) %>% 
+  left_join(products,by="product_id") %>% 
+  ungroup() %>% 
+  group_by(department_id,aisle_id) %>% 
+  summarize(sumcount = sum(count)) %>% 
+  left_join(tmp, by = c("department_id", "aisle_id")) %>% 
+  mutate(onesize = 1)
+#title can't be add in treemap
+treemap(tmp2,index=c("department","aisle"),vSize="sumcount",title="",palette="Set3",border.col="#FFFFFF")
+```
+
+### Customers' Shopping Habits
+
+
+#### Top 15 Frequently Bought Items
+
+```{r}
+tmp <- order_products_prior %>% 
+  group_by(product_id) %>% 
+  summarize(count = n()) %>% 
+  top_n(15, wt = count) %>%
+  left_join(select(products,product_id,product_name),by="product_id") %>%
+  arrange(desc(count)) 
+kable(tmp)
+
+tmp %>% 
+  ggplot(aes(x=reorder(product_name,-count), y=count))+
+  geom_bar(stat="identity",fill="darkcyan")+scale_y_continuous(labels = label_number(suffix="K",scale=1e-3))+coord_flip()+labs(x="Product Name",y="Sales of the Product",las=1, title="Figure 5: Top 15 Frequently Bought Products")
+```
+
+
+#### Organic Products vs. Non-organic Products
+
+```{r}
+products <- products %>% 
+    mutate(organic=ifelse(str_detect(str_to_lower(products$product_name),'organic'),"organic","not organic"), organic= as.factor(organic))
+
+kable(products[200:230,]%>%
+  select(product_name, organic))
+tmp <- order_products_prior %>% 
+  left_join(products, by="product_id") %>% 
+  group_by(organic) %>% 
+  summarize(count = n()) %>% 
+  mutate(proportion = count/sum(count))
+kable(tmp)
+```
+
+### Customers' Reorder Habit
+
+
+
+```{r}
+tmp <-order_products_prior %>% 
+  group_by(product_id) %>% 
+  summarize(proportion_reordered = mean(reordered), n=n()) %>% 
+  filter(n>40) %>% 
+  top_n(10,wt=proportion_reordered) %>% 
+  arrange(desc(proportion_reordered)) %>% 
+  left_join(products,by="product_id")
+kable(tmp)
+
+tmp %>% 
+  ggplot(aes(x=reorder(product_name,-proportion_reordered), y=proportion_reordered))+
+  geom_bar(stat="identity",fill="darkcyan")+coord_cartesian(ylim=c(0.85,0.95))+theme(axis.text.x=element_text(angle=90, hjust=1),axis.title.x = element_blank())+labs(x="Proportion of Reorder", title="Figure 6: Top 10 Most Frequently Reordered Items")
+```
+
+#### Reordered Rate of Organic vs Non-organic Product
+
+We then analyzed reorder rates of organic and non-organic products. Here, we used the mean function to calculate the average number of the variable "reordered" for both products. After calculation, we found that the mean of reordering for non-organic products is 0.57, whereas that for organic products is 0.63. This result indicates that organic products are more likely to be repurchased, which highlights the trend of organic products becoming popular.
+
+```{r}
+tmp <- order_products_prior%>% 
+  left_join(products,by="product_id") %>% 
+  group_by(organic) %>% 
+  summarize(mean_reordered = mean(reordered))
+tmp %>% 
+  ggplot(aes(x=organic,fill=organic,y=mean_reordered))+
+  geom_bar(stat="identity")+scale_fill_manual(values  = c("#00AFBB", "#E7B800"))+labs(x="Organic Product", y="Mean Reordered Rate", title="Figure 7: Mean Reordered Rate by Organic vs. Not Organic Products")
+```
+
+###PCA and K-Means Implementation for Customer Segmentation Using Python
+
+```{r}
+library(reticulate)
+```
+
+```{python}
+import numpy as np 
+import pandas as pd 
+aisles = pd.read_csv(r'aisles.csv')
+products = pd.read_csv(r'products.csv')
+orders = pd.read_csv(r'orders.csv')
+departments = pd.read_csv(r'departments.csv')
+prior = pd.read_csv(r'order_products__prior.csv')
+train = pd.read_csv(r'order_products__train.csv')
+```
+
+```{python}
+order_prior = pd.merge(prior,orders,on=['order_id','order_id'])
+order_prior = order_prior.sort_values(by=['user_id','order_id'])
+order_prior.head()
+```
+
+```{python}
+#Merge all the datasets together
+_mt = pd.merge(prior,products, on = ['product_id','product_id'])
+_mt = pd.merge(_mt,orders,on=['order_id','order_id'])
+mt = pd.merge(_mt,aisles,on=['aisle_id','aisle_id'])
+mt['product_name'].value_counts()[0:10]
+mt['aisle'].value_counts()[0:10]
+```
+
+```{python}
+#Create a dataframe with all the purchases made by each user.
+cust_prod = pd.crosstab(mt['user_id'], mt['aisle'])
+```
+
+```{python}
+#PCM: reduce the number of features from the number of aisles to 6
+from sklearn.decomposition import PCA
+pca = PCA(n_components=6)
+pca.fit(cust_prod)
+pca_samples = pca.transform(cust_prod)
+ps = pd.DataFrame(pca_samples)
+ps.head()
+```
+
+```{python}
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d import proj3d
+tocluster = pd.DataFrame(ps[[4,1]])
+
+fig = plt.figure(figsize=(8,8))
+plt.plot(tocluster[4], tocluster[1], 'o', markersize=2, color='blue', alpha=0.5, label='class1')
+plt.show()
+```
+
+```{python}
+tocluster = pd.DataFrame(ps[[2,2]])
+print (tocluster.shape)
+print (tocluster.head())
+
+fig = plt.figure(figsize=(8,8))
+plt.plot(tocluster[2], tocluster[2], 'o', markersize=2, color='blue', alpha=0.5, label='class1')
+
+plt.show()
+```
+
+
+```{python}
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+tocluster = pd.DataFrame(ps[[4,1]])
+clusterer = KMeans(n_clusters=4,random_state=42).fit(tocluster)
+centers = clusterer.cluster_centers_
+c_preds = clusterer.predict(tocluster)
+print(centers)
+```
+
+```{python}
+import matplotlib
+fig = plt.figure(figsize=(8,8))
+colors = ['orange','blue','purple','green']
+colored = [colors[k] for k in c_preds]
+print (colored[0:10])
+plt.scatter(tocluster[4],tocluster[1],  color = colored)
+for ci,c in enumerate(centers):
+    plt.plot(c[0], c[1], 'o', markersize=8, color='red', alpha=0.9, label=''+str(ci))
+
+plt.xlabel('x_values')
+plt.ylabel('y_values')
+plt.legend()
+plt.show()
+```
+
+
+
+```{python}
+clust_prod = cust_prod.copy()
+clust_prod['cluster'] = c_preds
+c0 = clust_prod[clust_prod['cluster']==0].drop('cluster',axis=1).mean()
+c1 = clust_prod[clust_prod['cluster']==1].drop('cluster',axis=1).mean()
+c2 = clust_prod[clust_prod['cluster']==2].drop('cluster',axis=1).mean()
+c3 = clust_prod[clust_prod['cluster']==3].drop('cluster',axis=1).mean()
+```
+
+```{python}
+#Top 10 goods bought by people of each cluster.
+c0.sort_values(ascending=False)[0:10]
+```
+
+
+```{python}
+#Top 10 goods bought by people of each cluster.
+c1.sort_values(ascending=False)[0:10]
+```
+
+```{python}
+#Top 10 goods bought by people of each cluster.
+c2.sort_values(ascending=False)[0:10]
+```
+
+```{python}
+#Top 10 goods bought by people of each cluster.
+c3.sort_values(ascending=False)[0:10]
+```

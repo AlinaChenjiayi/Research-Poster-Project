@@ -1,0 +1,12 @@
+install.packages(
+  "data.table",
+  "dplyr",
+  "ggplot2",
+  "knitr",
+  "reticulate",
+  "rmarkdown",
+  "scales",
+  "stringr",
+  "treemap",
+  "usethis"
+)
