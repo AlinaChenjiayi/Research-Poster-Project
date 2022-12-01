@@ -19,6 +19,7 @@ This is a short description of the project
             -   [Contact](#contact)
 
 ## General info
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/AlinaChenjiayi/Research-Poster-Project/HEAD)
 
 General information about the project (study system, goals, etc)
 
