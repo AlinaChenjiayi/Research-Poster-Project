@@ -25,9 +25,9 @@ This project conducts a market basket analysis of Instacart which is a leading o
 ## Project Description
 
 Among this project, critical factors contribute to sales are determined with visualization from R. We investigated questions related to customer purchasing behaviors 
-      - When usually people place order and reorder
-      - What are most frequently ordered and reordered products and departments
-      - Whether customers favor the organic products. 
+ - When usually people place order and reorder
+ - What are most frequently ordered and reordered products and departments
+ - Whether customers favor the organic products. 
 
 Then, customer segmentation is done by using Principle Component Analysis (PCA) and K-Means clustering. We utilized PCA to reduce data dimension, resulting in 6 most important features related to aisles. Then, we used K-means clustering to classify customers with similar characteristics (budget, amount, products) into 4 major groups. Both PCA and K-Means clustering are implemented through pandas and sklearn package in python.
 
